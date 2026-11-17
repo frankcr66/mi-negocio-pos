@@ -34,6 +34,8 @@ label{font-size:13px;font-weight:650;display:block;margin:10px 0 5px}
 .actions{display:flex;gap:7px}.actions button{padding:7px 10px}
 #message{min-height:20px;color:#235b43;font-size:13px;padding:4px}
 footer{padding:15px 4px 25px;text-align:center}
+#reader{width:100%;margin-top:10px;overflow:hidden;border-radius:10px}
+#reader video{width:100%!important;object-fit:cover}
 </style>
 </head>
 <body>
@@ -53,9 +55,10 @@ footer{padding:15px 4px 25px;text-align:center}
  <button class="primary" id="openScanner" style="width:100%">📷 Escanear código de barras</button>
  <div id="scannerPanel" class="card hidden">
   <div class="row" style="justify-content:space-between"><b>Escáner de productos</b><button id="closeScanner">Cerrar</button></div>
-  <div id="reader" style="width:100%;margin-top:10px;overflow:hidden;border-radius:10px"></div>
-  <p class="hint">Centra el código de barras frente a la cámara.</p>
-  <div id="scanResult" class="hint"></div>
+  <div id="reader"></div>
+  <p class="hint" id="scanResult">Al abrir, permite el acceso a la cámara.</p>
+  <label for="manualBarcode">Si no logra leerlo, escribe el código aquí</label>
+  <div class="row"><input id="manualBarcode" inputmode="numeric" placeholder="Código de barras"><button id="useManual" class="primary">Usar código</button></div>
  </div>
  <div id="catalog" class="grid"></div>
  <div class="card">
@@ -68,12 +71,12 @@ footer{padding:15px 4px 25px;text-align:center}
 </section>
 <section id="products" class="section hidden">
  <div class="card">
-  <b id="formTitle">Agregar producto</b>
-  <input id="productId" type="hidden">
+  <b id="formTitle">Agregar producto</b><input id="productId" type="hidden">
   <label for="productName">Nombre</label><input id="productName" placeholder="Ej. Hallulla">
   <div class="row"><div class="grow"><label for="productPrice">Precio de venta ($)</label><input id="productPrice" type="number" min="1" inputmode="numeric" placeholder="300"></div>
   <div class="grow"><label for="productStock">Stock (opcional)</label><input id="productStock" type="number" min="0" inputmode="numeric" placeholder="Sin control"></div></div>
-  <label for="productBarcode">Código de barras (opcional)</label><input id="productBarcode" inputmode="numeric" placeholder="Código escaneado o escrito"><label for="productCategory">Categoría</label><select id="productCategory"><option>Panadería</option><option>Pastelería</option><option>Bebidas</option><option>Otros</option></select>
+  <label for="productBarcode">Código de barras (opcional)</label><input id="productBarcode" inputmode="numeric" placeholder="Código escaneado o escrito">
+  <label for="productCategory">Categoría</label><select id="productCategory"><option>Panadería</option><option>Pastelería</option><option>Bebidas</option><option>Otros</option></select>
   <div class="row" style="margin-top:12px"><button class="primary grow" id="saveProduct">Guardar producto</button><button id="cancelEdit" class="hidden">Cancelar</button></div>
  </div>
  <div class="card"><b>Mis productos</b><div id="productList"></div></div>
@@ -88,9 +91,9 @@ footer{padding:15px 4px 25px;text-align:center}
 <footer class="hint">Los datos se guardan en este dispositivo. Exporta respaldos regularmente.</footer>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script>
-(()=> {
+(()=>{
 const KEY='mi_negocio_pos_data_v1';
-let state={products:[],sales:[]},cart={};
+let state={products:[],sales:[]},cart={},scanner=null,scannerBusy=false;
 const $=id=>document.getElementById(id);
 const money=n=>new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(n);
 const dateNow=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
@@ -105,8 +108,9 @@ function stats(){const ss=todaySales(),t=ss.reduce((a,s)=>a+s.total,0);$('todayT
  $('paymentSummary').innerHTML=Object.entries(sums).map(([k,v])=>`<div class="line"><span>${k}</span><b>${money(v)}</b></div>`).join('')||'<p class="muted">Sin ventas hoy.</p>';
  $('salesHistory').innerHTML=[...state.sales].reverse().slice(0,80).map(s=>`<div class="line"><div><b>${money(s.total)}</b><div class="hint">${s.date} · ${s.time} · ${s.payment}</div><div class="hint">${s.items.map(i=>safe(i.name)+' × '+i.qty).join(', ')}</div></div></div>`).join('')||'<p class="muted">Todavía no hay ventas.</p>'}
 function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function addProduct(id){const p=state.products.find(x=>x.id===id);if(!p)return;if(p.stock!==null&&(cart[p.id]||0)>=p.stock)return msg('Stock insuficiente.');cart[p.id]=(cart[p.id]||0)+1;renderCart();msg('Producto agregado: '+p.name)}
 function catalog(){const q=$('search').value.toLowerCase(),cat=$('categoryFilter').value;const ps=state.products.filter(p=>p.name.toLowerCase().includes(q)&&(!cat||p.category===cat));$('catalog').innerHTML=ps.map(p=>`<button class="product" data-add="${p.id}" ${p.stock===0?'disabled':''}><b>${safe(p.name)}</b><span>${money(p.price)}</span>${p.stock===null?'':`<small class="muted"> · Stock ${p.stock}</small>`}</button>`).join('')||'<p class="muted">No hay productos. Agrégalos en Productos.</p>';
- document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{const p=state.products.find(x=>x.id===b.dataset.add);if(!p)return;if(p.stock!==null&&(cart[p.id]||0)>=p.stock)return msg('Stock insuficiente.');cart[p.id]=(cart[p.id]||0)+1;renderCart();msg('Producto agregado.')})}
+ document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addProduct(b.dataset.add))}
 function renderCart(){$('cart').innerHTML=Object.entries(cart).map(([id,q])=>{const p=state.products.find(x=>x.id===id);return p?`<div class="line"><div class="grow"><b>${safe(p.name)}</b><div class="hint">${money(p.price)} c/u</div></div><div class="actions"><button data-dec="${id}">−</button><b>${q}</b><button data-inc="${id}">+</button></div><b>${money(p.price*q)}</b></div>`:''}).join('')||'<p class="muted">Agrega productos para comenzar.</p>';$('cartTotal').textContent=money(total());
  document.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{const id=b.dataset.dec;if(--cart[id]<=0)delete cart[id];renderCart()});
  document.querySelectorAll('[data-inc]').forEach(b=>b.onclick=()=>{const id=b.dataset.inc,p=state.products.find(x=>x.id===id);if(p.stock!==null&&(cart[id]||0)>=p.stock)return msg('Stock insuficiente.');cart[id]++;renderCart()})}
@@ -116,14 +120,14 @@ function productList(){$('productList').innerHTML=state.products.map(p=>`<div cl
 function editProduct(id){const p=state.products.find(x=>x.id===id);if(!p)return;$('productId').value=id;$('productName').value=p.name;$('productPrice').value=p.price;$('productStock').value=p.stock===null?'':p.stock;$('productCategory').value=p.category;$('productBarcode').value=p.barcode||'';$('formTitle').textContent='Editar producto';$('cancelEdit').classList.remove('hidden');window.scrollTo({top:0,behavior:'smooth'})}
 function resetForm(){$('productId').value='';$('productName').value='';$('productPrice').value='';$('productStock').value='';$('productBarcode').value='';$('productCategory').value='Panadería';$('formTitle').textContent='Agregar producto';$('cancelEdit').classList.add('hidden')}
 function render(){catalog();renderCart();productList();stats()}
-document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('active',x===b));['sell','products','cash'].forEach(id=>$(id).classList.toggle('hidden',id!==b.dataset.page));msg('')});
+function showPage(page){document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('active',x.dataset.page===page));['sell','products','cash'].forEach(id=>$(id).classList.toggle('hidden',id!==page));}
+document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{showPage(b.dataset.page);msg('')});
 $('search').oninput=catalog;$('categoryFilter').onchange=catalog;
-$('saveProduct').onclick=()=>{const name=$('productName').value.trim(),price=Number($('productPrice').value),st=$('productStock').value.trim();if(!name||!Number.isSafeInteger(price)||price<=0|| (st!==''&&(!Number.isSafeInteger(Number(st))||Number(st)<0)))return msg('Ingresa un nombre, precio entero y stock válido.');
+$('saveProduct').onclick=()=>{const name=$('productName').value.trim(),price=Number($('productPrice').value),st=$('productStock').value.trim();if(!name||!Number.isSafeInteger(price)||price<=0||(st!==''&&(!Number.isSafeInteger(Number(st))||Number(st)<0)))return msg('Ingresa un nombre, precio entero y stock válido.');
  const barcode=$('productBarcode').value.trim();if(barcode&&state.products.some(p=>p.barcode===barcode&&p.id!==$('productId').value))return msg('Ese código de barras ya está registrado.');const obj={name,price,category:$('productCategory').value,stock:st===''?null:Number(st),barcode},id=$('productId').value;
  if(id){const p=state.products.find(x=>x.id===id);if(p)Object.assign(p,obj)}else state.products.push({...obj,id:Date.now().toString(36)+Math.random().toString(36).slice(2)});
  save();resetForm();render();msg('Producto guardado.')};
-$('cancelEdit').onclick=resetForm;
-$('clearCart').onclick=()=>{cart={};renderCart()};
+$('cancelEdit').onclick=resetForm;$('clearCart').onclick=()=>{cart={};renderCart()};
 $('completeSale').onclick=()=>{const t=total(),items=Object.entries(cart).map(([id,qty])=>{const p=state.products.find(x=>x.id===id);return p?{id,name:p.name,price:p.price,qty}:null}).filter(Boolean);if(!items.length)return msg('Agrega productos antes de registrar.');
  for(const i of items){const p=state.products.find(x=>x.id===i.id);if(p.stock!==null&&p.stock<i.qty)return msg('Stock insuficiente: '+p.name)}
  if(!confirm('¿Registrar la venta por '+money(t)+'?'))return;
@@ -133,44 +137,28 @@ function download(name,content,type){const a=document.createElement('a'),u=URL.c
 $('exportSales').onclick=()=>{const rows=[['Fecha','Hora','Productos','Total','Medio de pago'],...state.sales.map(s=>[s.date,s.time,s.items.map(i=>i.name+' x'+i.qty).join(' / '),s.total,s.payment])];download('ventas_mi_negocio.csv','\uFEFF'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv;charset=utf-8')};
 $('backup').onclick=()=>download('respaldo_mi_negocio.json',JSON.stringify(state,null,2),'application/json');
 $('restore').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const x=JSON.parse(await f.text());if(!Array.isArray(x.products)||!Array.isArray(x.sales))throw Error();if(confirm('Esto reemplazará los datos actuales. ¿Continuar?')){state=x;save();render();msg('Respaldo restaurado.')}}catch(err){msg('El archivo no es un respaldo válido.')}e.target.value=''};
-
-let scanner=null,scannerBusy=false;
-async function stopScanner(){
- if(scanner){try{if(scanner.isScanning)await scanner.stop();await scanner.clear()}catch(e){}scanner=null}
- $('scannerPanel').classList.add('hidden');
-}
+function handleCode(raw){const code=String(raw||'').trim();if(!code)return msg('Escribe o escanea un código.');const found=state.products.find(p=>String(p.barcode||'').trim()===code);
+ if(found){if(found.stock===0)msg('Producto agotado: '+found.name);else addProduct(found.id);stopScanner();return}
+ stopScanner();showPage('products');resetForm();$('productBarcode').value=code;$('productName').focus();msg('Código nuevo. Escribe el nombre y precio, y guarda el producto.')}
+async function stopScanner(){if(scanner){try{if(scanner.isScanning)await scanner.stop();await scanner.clear()}catch(e){}scanner=null}$('scannerPanel').classList.add('hidden');$('reader').innerHTML='';scannerBusy=false}
 async function startScanner(){
- if(!window.Html5Qrcode){msg('No se pudo cargar el lector. Comprueba tu conexión a internet.');return}
- $('scannerPanel').classList.remove('hidden');
- $('scanResult').textContent='Solicitando acceso a la cámara…';
+ $('scannerPanel').classList.remove('hidden');$('scanResult').textContent='Conectando con la cámara…';
+ if(!window.isSecureContext){$('scanResult').textContent='Abre la aplicación desde su dirección https para usar la cámara.';return}
+ if(!window.Html5Qrcode){$('scanResult').textContent='No cargó el lector. Comprueba internet y vuelve a intentarlo.';return}
  try{
-  scanner=new Html5Qrcode('reader');
+  scanner=new Html5Qrcode('reader', {verbose:false});
+  const cameras=await Html5Qrcode.getCameras();
+  if(!cameras||!cameras.length)throw new Error('No se encontró una cámara disponible.');
+  const back=cameras.find(c=>/back|rear|trasera|environment/i.test(c.label))||cameras[cameras.length-1];
   const formats=[Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39,Html5QrcodeSupportedFormats.ITF];
-  await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:260,height:120},formatsToSupport:formats},async decoded=>{
-   if(scannerBusy)return;scannerBusy=true;
-   const code=String(decoded).trim();
-   const existing=state.products.find(p=>p.barcode===code);
-   if(existing){
-    if(existing.stock===0)msg('Producto agotado: '+existing.name);
-    else{cart[existing.id]=(cart[existing.id]||0)+1;renderCart();msg('Producto encontrado: '+existing.name+' · '+money(existing.price));}
-    await stopScanner();
-   }else{
-    await stopScanner();
-    document.querySelector('[data-page="products"]').click();
-    resetForm();$('productBarcode').value=code;$('productName').focus();
-    msg('Código nuevo. Ingresa nombre, precio y guarda el producto.');
-   }
-   scannerBusy=false;
+  await scanner.start(back.id,{fps:15,disableFlip:true,formatsToSupport:formats,videoConstraints:{facingMode:{ideal:'environment'}}},decoded=>{
+   if(scannerBusy)return;scannerBusy=true;$('scanResult').textContent='Código leído: '+decoded;handleCode(decoded);
   },()=>{});
-  $('scanResult').textContent='Cámara activa. Centra el código de barras en el recuadro.';
- }catch(e){
-  $('scanResult').textContent='No se pudo abrir la cámara. Permite el acceso y utiliza la aplicación desde una dirección HTTPS.';
-  msg('Revisa los permisos de cámara de Safari.');
- }
+  $('scanResult').textContent='Cámara activa. Apunta al código y mantenlo quieto unos segundos.';
+ }catch(e){$('scanResult').textContent='No se pudo iniciar el lector: '+(e&&e.message?e.message:'revisa permiso de cámara e internet')+'. También puedes escribir el código manualmente.';try{if(scanner){await scanner.clear();scanner=null}}catch(_){}}
 }
-$('openScanner').onclick=startScanner;
-$('closeScanner').onclick=stopScanner;
-
+$('openScanner').onclick=startScanner;$('closeScanner').onclick=stopScanner;
+$('useManual').onclick=()=>handleCode($('manualBarcode').value);
 load();render();
 if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
