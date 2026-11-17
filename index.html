@@ -146,12 +146,21 @@ async function startScanner(){
  if(!window.isSecureContext){$('scanResult').textContent='Abre la aplicación desde su dirección https para usar la cámara.';return}
  if(!window.Html5Qrcode){$('scanResult').textContent='No cargó el lector. Comprueba internet y vuelve a intentarlo.';return}
  try{
-  scanner=new Html5Qrcode('reader', {verbose:false});
+  const formats=[
+   Html5QrcodeSupportedFormats.EAN_13,
+   Html5QrcodeSupportedFormats.EAN_8,
+   Html5QrcodeSupportedFormats.UPC_A,
+   Html5QrcodeSupportedFormats.UPC_E,
+   Html5QrcodeSupportedFormats.CODE_128,
+   Html5QrcodeSupportedFormats.CODE_39,
+   Html5QrcodeSupportedFormats.ITF
+  ];
+  // Los formatos se configuran al crear el lector, no dentro de start().
+  scanner=new Html5Qrcode('reader', {verbose:false, formatsToSupport:formats});
   const cameras=await Html5Qrcode.getCameras();
   if(!cameras||!cameras.length)throw new Error('No se encontró una cámara disponible.');
   const back=cameras.find(c=>/back|rear|trasera|environment/i.test(c.label))||cameras[cameras.length-1];
-  const formats=[Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39,Html5QrcodeSupportedFormats.ITF];
-  await scanner.start(back.id,{fps:15,disableFlip:true,formatsToSupport:formats,videoConstraints:{facingMode:{ideal:'environment'}}},decoded=>{
+  await scanner.start(back.id,{fps:15,disableFlip:true,videoConstraints:{facingMode:{ideal:'environment'}}},decoded=>{
    if(scannerBusy)return;scannerBusy=true;$('scanResult').textContent='Código leído: '+decoded;handleCode(decoded);
   },()=>{});
   $('scanResult').textContent='Cámara activa. Apunta al código y mantenlo quieto unos segundos.';
