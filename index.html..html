@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#173f35">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Mi Negocio POS">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Mi Negocio POS</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#17251f;background:#f4f6f4}
+*{box-sizing:border-box}body{margin:0;padding:env(safe-area-inset-top) 14px env(safe-area-inset-bottom);max-width:760px;margin-inline:auto}
+header{padding:18px 4px 12px;display:flex;justify-content:space-between;align-items:center}
+h1{font-size:23px;margin:0}small,.muted{color:#68766f}.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.card{background:white;border:1px solid #e1e7e2;border-radius:15px;padding:14px;box-shadow:0 2px 8px #173f3509}
+.stat{font-size:22px;font-weight:750;margin-top:5px}
+nav{display:flex;gap:7px;margin:12px 0;position:sticky;top:0;background:#f4f6f4;padding:6px 0;z-index:2}
+nav button{flex:1;padding:12px 4px;border:1px solid #dce4dd;border-radius:11px;background:white;font-weight:650;color:#284239}
+nav button.active,.primary{background:#173f35;color:white;border-color:#173f35}
+button,input,select{font:inherit}button{cursor:pointer;border-radius:10px;padding:10px 12px;border:1px solid #dce4dd;background:white;color:#20372e}
+input,select{width:100%;padding:12px;border:1px solid #d6dfd8;border-radius:10px;background:white;color:#17251f}
+label{font-size:13px;font-weight:650;display:block;margin:10px 0 5px}
+.row{display:flex;gap:8px;align-items:center}.row>*{min-width:0}.grow{flex:1}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.product{width:100%;text-align:left;padding:13px;min-height:83px}
+.product b{display:block;margin-bottom:6px}.product span{color:#365d4e;font-weight:700}
+.section{display:grid;gap:12px}.hidden{display:none!important}
+.line{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #edf0ed}
+.total{font-size:22px;font-weight:800}.hint{font-size:12px;line-height:1.45;color:#68766f}
+.danger{color:#a12e2e}.pill{font-size:12px;background:#edf4ef;border-radius:20px;padding:4px 8px}
+.actions{display:flex;gap:7px}.actions button{padding:7px 10px}
+#message{min-height:20px;color:#235b43;font-size:13px;padding:4px}
+footer{padding:15px 4px 25px;text-align:center}
+</style>
+</head>
+<body>
+<header><div><small>SISTEMA DE VENTAS</small><h1>Mi Negocio POS</h1></div><span class="pill">CLP $</span></header>
+<div class="stats">
+ <div class="card"><small>Ventas de hoy</small><div class="stat" id="todayTotal">$0</div></div>
+ <div class="card"><small>Número de ventas</small><div class="stat" id="todayCount">0</div></div>
+</div>
+<nav>
+ <button class="active" data-page="sell">🛒 Vender</button>
+ <button data-page="products">📦 Productos</button>
+ <button data-page="cash">📊 Caja</button>
+</nav>
+<main>
+<section id="sell" class="section">
+ <div class="row"><input id="search" placeholder="Buscar producto"><select id="categoryFilter" style="max-width:135px"><option value="">Todas</option><option>Panadería</option><option>Pastelería</option><option>Bebidas</option><option>Otros</option></select></div>
+ <button class="primary" id="openScanner" style="width:100%">📷 Escanear código de barras</button>
+ <div id="scannerPanel" class="card hidden">
+  <div class="row" style="justify-content:space-between"><b>Escáner de productos</b><button id="closeScanner">Cerrar</button></div>
+  <div id="reader" style="width:100%;margin-top:10px;overflow:hidden;border-radius:10px"></div>
+  <p class="hint">Centra el código de barras frente a la cámara. Mantén el código completo visible.</p>
+  <div id="scanResult" class="hint" role="status">Preparando lector…</div>
+  <label for="manualBarcode">También puedes escribir el código</label>
+  <div class="row"><input id="manualBarcode" inputmode="numeric" autocomplete="off" placeholder="Código de barras"><button id="manualBarcodeGo" class="primary">Buscar</button></div>
+ </div>
+ <div id="catalog" class="grid"></div>
+ <div class="card">
+  <div class="row" style="justify-content:space-between"><b>Venta actual</b><button id="clearCart">Vaciar</button></div>
+  <div id="cart"><p class="muted">Agrega productos para comenzar.</p></div>
+  <div class="line"><b>Total</b><span class="total" id="cartTotal">$0</span></div>
+  <label for="payment">Medio de pago</label><select id="payment"><option>Efectivo</option><option>Transferencia</option><option>Tarjeta</option></select>
+  <button class="primary" id="completeSale" style="width:100%;margin-top:12px">Registrar venta</button>
+ </div>
+</section>
+<section id="products" class="section hidden">
+ <div class="card">
+  <b id="formTitle">Agregar producto</b>
+  <input id="productId" type="hidden">
+  <label for="productName">Nombre</label><input id="productName" placeholder="Ej. Hallulla">
+  <div class="row"><div class="grow"><label for="productPrice">Precio de venta ($)</label><input id="productPrice" type="number" min="1" inputmode="numeric" placeholder="300"></div>
+  <div class="grow"><label for="productStock">Stock (opcional)</label><input id="productStock" type="number" min="0" inputmode="numeric" placeholder="Sin control"></div></div>
+  <label for="productBarcode">Código de barras (opcional)</label><input id="productBarcode" inputmode="numeric" placeholder="Código escaneado o escrito"><label for="productCategory">Categoría</label><select id="productCategory"><option>Panadería</option><option>Pastelería</option><option>Bebidas</option><option>Otros</option></select>
+  <div class="row" style="margin-top:12px"><button class="primary grow" id="saveProduct">Guardar producto</button><button id="cancelEdit" class="hidden">Cancelar</button></div>
+ </div>
+ <div class="card"><b>Mis productos</b><div id="productList"></div></div>
+</section>
+<section id="cash" class="section hidden">
+ <div class="card"><b>Resumen de hoy</b><div class="stat" id="cashTotal">$0</div><small id="cashCount">0 ventas</small><div id="paymentSummary" style="margin-top:10px"></div></div>
+ <div class="card"><div class="row" style="justify-content:space-between"><b>Historial de ventas</b><button id="exportSales">Exportar CSV</button></div><div id="salesHistory"></div></div>
+ <div class="card"><b>Respaldo de datos</b><p class="hint">Guarda una copia de tus productos y ventas. Conserva el archivo en un lugar seguro.</p><button id="backup" class="primary" style="width:100%">Descargar respaldo</button><label for="restore">Restaurar respaldo</label><input id="restore" type="file" accept="application/json"></div>
+</section>
+</main>
+<div id="message" role="status"></div>
+<footer class="hint">Los datos se guardan en este dispositivo. Exporta respaldos regularmente.</footer>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+(()=> {
+const KEY='mi_negocio_pos_data_v1';
+let state={products:[],sales:[]},cart={};
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(n);
+const dateNow=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const timeNow=()=>new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+const msg=t=>$('message').textContent=t;
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY)||'{}');if(Array.isArray(s.products)&&Array.isArray(s.sales))state=s}catch(e){msg('No se pudo leer el registro guardado.')}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state))}catch(e){msg('No se pudieron guardar los datos. Descarga un respaldo y libera espacio.')}}
+function total(){return Object.entries(cart).reduce((a,[id,q])=>{const p=state.products.find(x=>x.id===id);return a+(p?p.price*q:0)},0)}
+function todaySales(){return state.sales.filter(s=>s.date===dateNow())}
+function stats(){const ss=todaySales(),t=ss.reduce((a,s)=>a+s.total,0);$('todayTotal').textContent=money(t);$('todayCount').textContent=ss.length;$('cashTotal').textContent=money(t);$('cashCount').textContent=ss.length+' ventas';
+ const sums={};ss.forEach(s=>s.items&&s.items.length&&(sums[s.payment]=(sums[s.payment]||0)+s.total));
+ $('paymentSummary').innerHTML=Object.entries(sums).map(([k,v])=>`<div class="line"><span>${k}</span><b>${money(v)}</b></div>`).join('')||'<p class="muted">Sin ventas hoy.</p>';
+ $('salesHistory').innerHTML=[...state.sales].reverse().slice(0,80).map(s=>`<div class="line"><div><b>${money(s.total)}</b><div class="hint">${s.date} · ${s.time} · ${s.payment}</div><div class="hint">${s.items.map(i=>safe(i.name)+' × '+i.qty).join(', ')}</div></div></div>`).join('')||'<p class="muted">Todavía no hay ventas.</p>'}
+function safe(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function catalog(){const q=$('search').value.toLowerCase(),cat=$('categoryFilter').value;const ps=state.products.filter(p=>p.name.toLowerCase().includes(q)&&(!cat||p.category===cat));$('catalog').innerHTML=ps.map(p=>`<button class="product" data-add="${p.id}" ${p.stock===0?'disabled':''}><b>${safe(p.name)}</b><span>${money(p.price)}</span>${p.stock===null?'':`<small class="muted"> · Stock ${p.stock}</small>`}</button>`).join('')||'<p class="muted">No hay productos. Agrégalos en Productos.</p>';
+ document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{const p=state.products.find(x=>x.id===b.dataset.add);if(!p)return;if(p.stock!==null&&(cart[p.id]||0)>=p.stock)return msg('Stock insuficiente.');cart[p.id]=(cart[p.id]||0)+1;renderCart();msg('Producto agregado.')})}
+function renderCart(){$('cart').innerHTML=Object.entries(cart).map(([id,q])=>{const p=state.products.find(x=>x.id===id);return p?`<div class="line"><div class="grow"><b>${safe(p.name)}</b><div class="hint">${money(p.price)} c/u</div></div><div class="actions"><button data-dec="${id}">−</button><b>${q}</b><button data-inc="${id}">+</button></div><b>${money(p.price*q)}</b></div>`:''}).join('')||'<p class="muted">Agrega productos para comenzar.</p>';$('cartTotal').textContent=money(total());
+ document.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{const id=b.dataset.dec;if(--cart[id]<=0)delete cart[id];renderCart()});
+ document.querySelectorAll('[data-inc]').forEach(b=>b.onclick=()=>{const id=b.dataset.inc,p=state.products.find(x=>x.id===id);if(p.stock!==null&&(cart[id]||0)>=p.stock)return msg('Stock insuficiente.');cart[id]++;renderCart()})}
+function productList(){$('productList').innerHTML=state.products.map(p=>`<div class="line"><div class="grow"><b>${safe(p.name)}</b><div class="hint">${p.category} · ${money(p.price)} · Stock: ${p.stock===null?'No controlado':p.stock}</div></div><div class="actions"><button data-edit="${p.id}">Editar</button><button class="danger" data-del="${p.id}">Eliminar</button></div></div>`).join('')||'<p class="muted">Aún no tienes productos.</p>';
+ document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>editProduct(b.dataset.edit));
+ document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{if(confirm('¿Eliminar este producto?')){state.products=state.products.filter(p=>p.id!==b.dataset.del);delete cart[b.dataset.del];save();render();msg('Producto eliminado.')}})}
+function editProduct(id){const p=state.products.find(x=>x.id===id);if(!p)return;$('productId').value=id;$('productName').value=p.name;$('productPrice').value=p.price;$('productStock').value=p.stock===null?'':p.stock;$('productCategory').value=p.category;$('productBarcode').value=p.barcode||'';$('formTitle').textContent='Editar producto';$('cancelEdit').classList.remove('hidden');window.scrollTo({top:0,behavior:'smooth'})}
+function resetForm(){$('productId').value='';$('productName').value='';$('productPrice').value='';$('productStock').value='';$('productBarcode').value='';$('productCategory').value='Panadería';$('formTitle').textContent='Agregar producto';$('cancelEdit').classList.add('hidden')}
+function render(){catalog();renderCart();productList();stats()}
+document.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-page]').forEach(x=>x.classList.toggle('active',x===b));['sell','products','cash'].forEach(id=>$(id).classList.toggle('hidden',id!==b.dataset.page));msg('')});
+$('search').oninput=catalog;$('categoryFilter').onchange=catalog;
+$('saveProduct').onclick=()=>{const name=$('productName').value.trim(),price=Number($('productPrice').value),st=$('productStock').value.trim();if(!name||!Number.isSafeInteger(price)||price<=0|| (st!==''&&(!Number.isSafeInteger(Number(st))||Number(st)<0)))return msg('Ingresa un nombre, precio entero y stock válido.');
+ const barcode=$('productBarcode').value.trim();if(barcode&&state.products.some(p=>p.barcode===barcode&&p.id!==$('productId').value))return msg('Ese código de barras ya está registrado.');const obj={name,price,category:$('productCategory').value,stock:st===''?null:Number(st),barcode},id=$('productId').value;
+ if(id){const p=state.products.find(x=>x.id===id);if(p)Object.assign(p,obj)}else state.products.push({...obj,id:Date.now().toString(36)+Math.random().toString(36).slice(2)});
+ save();resetForm();render();msg('Producto guardado.')};
+$('cancelEdit').onclick=resetForm;
+$('clearCart').onclick=()=>{cart={};renderCart()};
+$('completeSale').onclick=()=>{const t=total(),items=Object.entries(cart).map(([id,qty])=>{const p=state.products.find(x=>x.id===id);return p?{id,name:p.name,price:p.price,qty}:null}).filter(Boolean);if(!items.length)return msg('Agrega productos antes de registrar.');
+ for(const i of items){const p=state.products.find(x=>x.id===i.id);if(p.stock!==null&&p.stock<i.qty)return msg('Stock insuficiente: '+p.name)}
+ if(!confirm('¿Registrar la venta por '+money(t)+'?'))return;
+ items.forEach(i=>{const p=state.products.find(x=>x.id===i.id);if(p.stock!==null)p.stock-=i.qty});
+ state.sales.push({date:dateNow(),time:timeNow(),total:t,payment:$('payment').value,items});cart={};save();render();msg('Venta registrada correctamente.')};
+function download(name,content,type){const a=document.createElement('a'),u=URL.createObjectURL(new Blob([content],{type}));a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
+$('exportSales').onclick=()=>{const rows=[['Fecha','Hora','Productos','Total','Medio de pago'],...state.sales.map(s=>[s.date,s.time,s.items.map(i=>i.name+' x'+i.qty).join(' / '),s.total,s.payment])];download('ventas_mi_negocio.csv','\uFEFF'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\n'),'text/csv;charset=utf-8')};
+$('backup').onclick=()=>download('respaldo_mi_negocio.json',JSON.stringify(state,null,2),'application/json');
+$('restore').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const x=JSON.parse(await f.text());if(!Array.isArray(x.products)||!Array.isArray(x.sales))throw Error();if(confirm('Esto reemplazará los datos actuales. ¿Continuar?')){state=x;save();render();msg('Respaldo restaurado.')}}catch(err){msg('El archivo no es un respaldo válido.')}e.target.value=''};
+
+let scanner=null,scannerBusy=false;
+function findBarcode(raw){
+ const code=String(raw||'').trim();
+ if(!code){$('scanResult').textContent='Escribe o escanea un código primero.';return}
+ const existing=state.products.find(p=>String(p.barcode||'').trim()===code);
+ if(existing){
+  if(existing.stock===0){msg('Producto agotado: '+existing.name);$('scanResult').textContent='Producto agotado: '+existing.name;return}
+  cart[existing.id]=(cart[existing.id]||0)+1;renderCart();
+  msg('Producto encontrado: '+existing.name+' · '+money(existing.price));
+  stopScanner();
+ }else{
+  stopScanner();
+  document.querySelector('[data-page="products"]').click();
+  resetForm();$('productBarcode').value=code;$('productName').focus();
+  msg('Código nuevo. Ingresa nombre, precio y guarda el producto.');
+ }
+}
+async function stopScanner(){
+ if(scanner){const old=scanner;scanner=null;try{if(old.isScanning)await old.stop();await old.clear()}catch(e){}}
+ $('scannerPanel').classList.add('hidden');
+}
+async function startScanner(){
+ $('scannerPanel').classList.remove('hidden');
+ $('scanResult').textContent='Comprobando el lector…';
+ $('manualBarcode').value='';
+ if(!window.isSecureContext){$('scanResult').textContent='La cámara requiere HTTPS. Abre la dirección segura de tu POS en Safari.';return}
+ if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){$('scanResult').textContent='Este navegador no permite acceder a la cámara. Prueba abrir el POS directamente en Safari.';return}
+ if(!window.Html5Qrcode){$('scanResult').textContent='No se cargó la biblioteca del lector. Comprueba tu conexión a internet y usa el ingreso manual.';return}
+ try{
+  scanner=new Html5Qrcode('reader');
+  const formats=[Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39,Html5QrcodeSupportedFormats.ITF];
+  await scanner.start(
+   {facingMode:'environment'},
+   {fps:15,formatsToSupport:formats,disableFlip:false,videoConstraints:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}},
+   decoded=>{
+    if(scannerBusy)return;
+    scannerBusy=true;
+    $('scanResult').textContent='Código leído: '+decoded;
+    findBarcode(decoded);
+    scannerBusy=false;
+   },
+   errorMessage=>{}
+  );
+  $('scanResult').textContent='Cámara activa. Se analiza toda la imagen; mueve lentamente el código por el centro.';
+ }catch(e){
+  const detail=(e&&e.message)?e.message:String(e||'');
+  $('scanResult').textContent='No se pudo iniciar el lector. Revisa el permiso de cámara de Safari. '+detail;
+  msg('No se pudo iniciar la cámara. Puedes escribir el código manualmente.');
+  if(scanner){try{await scanner.clear()}catch(_){}scanner=null}
+ }
+}
+$('manualBarcodeGo').onclick=()=>findBarcode($('manualBarcode').value);
+$('manualBarcode').addEventListener('keydown',e=>{if(e.key==='Enter')findBarcode($('manualBarcode').value)});
+$('openScanner').onclick=startScanner;
+$('closeScanner').onclick=stopScanner;
+
+load();render();
+if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+})();
+</script>
+</body></html>
